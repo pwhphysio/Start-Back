@@ -1,0 +1,565 @@
+<!DOCTYPE html><html lang="zh-HK"><head><meta name="x-poe-datastore-behavior" content="local_only"><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>STarT Back 背部檢測工具</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{
+  height:100%;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang HK","Microsoft JhengHei",Roboto,sans-serif;
+  background:#46178f;
+  color:#fff;
+  overflow-x:hidden;
+}
+
+/* ── Speech unlock overlay ── */
+#speech-overlay{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.88);
+  display:flex;flex-direction:column;
+  justify-content:center;align-items:center;
+  z-index:1000;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+#speech-overlay .tap-icon{
+  font-size:6rem;margin-bottom:1.5rem;
+  animation:pulse 1.4s ease-in-out infinite;
+}
+#speech-overlay .tap-text{font-size:2.8rem;font-weight:bold;}
+#speech-overlay .tap-sub{font-size:1.3rem;margin-top:.8rem;opacity:.7;}
+@keyframes pulse{
+  0%,100%{transform:scale(1);opacity:1}
+  50%{transform:scale(1.18);opacity:.65}
+}
+
+/* ── No-speech banner ── */
+#no-speech-banner{
+  display:none;position:fixed;top:0;left:0;right:0;
+  background:#e74c3c;color:#fff;text-align:center;
+  padding:.7rem;font-size:1.2rem;z-index:500;
+}
+
+/* ── App container ── */
+#app{
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:flex-start;
+  padding:1rem .7rem 2rem;
+}
+
+/* ── Header ── */
+.header-title{font-size:1.8rem;font-weight:bold;text-align:center;margin-top:.4rem;}
+.header-sub{font-size:1.1rem;text-align:center;opacity:.75;margin-top:.2rem;margin-bottom:.8rem;}
+
+/* ── Progress ── */
+#progress-area{width:100%;max-width:700px;margin-bottom:1rem;}
+#progress-text{font-size:1.6rem;font-weight:bold;text-align:center;margin-bottom:.5rem;}
+#progress-bar-bg{width:100%;height:12px;background:rgba(255,255,255,.2);border-radius:6px;overflow:hidden;}
+#progress-bar-fill{height:100%;width:0;background:#66d9a0;border-radius:6px;transition:width .4s ease;}
+
+/* ── Question card ── */
+#question-card{
+  background:#fff;color:#222;border-radius:16px;
+  padding:1.6rem 1.2rem 1rem;
+  width:100%;max-width:700px;text-align:center;
+  box-shadow:0 8px 32px rgba(0,0,0,.3);
+  margin-bottom:1.2rem;
+}
+#question-number{font-size:1.2rem;color:#999;margin-bottom:.35rem;font-weight:bold;}
+#question-text{font-size:2rem;font-weight:bold;line-height:1.75;}
+#replay-btn{
+  display:inline-block;margin-top:1rem;
+  padding:.6rem 1.8rem;
+  background:#ececec;color:#555;border:none;border-radius:25px;
+  font-size:1.3rem;cursor:pointer;transition:background .2s;
+  -webkit-tap-highlight-color:transparent;
+}
+#replay-btn:hover{background:#ddd;}
+
+/* ── Answers area — single column ── */
+#answers-area{
+  width:100%;max-width:700px;
+  display:grid;
+  grid-template-columns:1fr;
+  gap:.75rem;
+}
+
+.answer-btn{
+  border:none;border-radius:14px;
+  padding:1.5rem 1rem;
+  font-size:2rem;font-weight:bold;
+  color:#fff;cursor:pointer;
+  transition:transform .15s,opacity .15s,box-shadow .3s,filter .3s;
+  box-shadow:0 5px 0 rgba(0,0,0,.22);
+  text-align:center;user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  min-height:4.5rem;
+  display:flex;align-items:center;justify-content:center;
+  gap:0.5rem;
+  position:relative;
+}
+.answer-btn:active:not(.locked){transform:scale(.96);}
+.answer-btn.locked{pointer-events:none;opacity:.35;filter:grayscale(.3);}
+.answer-btn.selected{
+  transform:scale(1.04);opacity:1!important;filter:none!important;
+  box-shadow:0 0 0 5px #fff,0 5px 0 rgba(0,0,0,.22);
+}
+
+/* ── Glow effect ── */
+.answer-btn.glow{
+  animation:glowPulse .7s ease-in-out infinite alternate;
+  z-index:10;
+  transform:scale(1.04);
+}
+@keyframes glowPulse{
+  0%{
+    box-shadow:0 0 12px rgba(255,255,255,0.6),0 0 24px rgba(255,255,255,0.3),0 5px 0 rgba(0,0,0,.22);
+    filter:brightness(1.15);
+  }
+  100%{
+    box-shadow:0 0 24px rgba(255,255,255,1),0 0 48px rgba(255,255,255,0.5),0 0 72px rgba(255,255,255,0.2),0 5px 0 rgba(0,0,0,.22);
+    filter:brightness(1.35);
+  }
+}
+
+.clr-red{background:#e21b3c;}
+.clr-blue{background:#1368ce;}
+.clr-green{background:#26890c;}
+.clr-gold{background:#d89e00;}
+.clr-orange{background:#e67e22;}
+
+/* ── Emoji in buttons ── */
+.btn-emoji{font-size:2.4rem;line-height:1;}
+
+/* ── Result screen ── */
+#result-screen{display:none;width:100%;max-width:700px;text-align:center;}
+.result-card{
+  background:#fff;color:#333;border-radius:16px;
+  padding:2rem 1.4rem;
+  box-shadow:0 8px 32px rgba(0,0,0,.3);
+  margin-bottom:1.5rem;
+}
+.result-msg{font-size:1.6rem;line-height:1.9;margin-bottom:1.8rem;text-align:left;}
+.result-scores{font-size:2.4rem;font-weight:bold;color:#46178f;}
+.result-scores span{display:block;margin:.5rem 0;}
+.result-credit{font-size:1rem;color:#aaa;margin-top:1.4rem;}
+#restart-btn{
+  padding:1.2rem 3rem;background:#66d9a0;color:#fff;
+  border:none;border-radius:30px;font-size:1.8rem;font-weight:bold;
+  cursor:pointer;box-shadow:0 4px 0 rgba(0,0,0,.15);
+  transition:background .2s;
+  -webkit-tap-highlight-color:transparent;
+}
+#restart-btn:hover{background:#50c08a;}
+
+/* ── Quiz wrapper ── */
+#quiz-area{width:100%;display:flex;flex-direction:column;align-items:center;}
+
+/* ── Tablet+ ── */
+@media(min-width:600px){
+  #question-text{font-size:2.4rem;}
+  .answer-btn{font-size:2.2rem;padding:1.8rem 1.2rem;}
+  .btn-emoji{font-size:2.8rem;}
+  .result-msg{font-size:1.8rem;}
+  .result-scores{font-size:2.8rem;}
+}
+</style>
+</head>
+<body>
+
+<!-- Speech unlock overlay -->
+<div id="speech-overlay">
+  <div class="tap-icon">🔊</div>
+  <div class="tap-text">點按以啟用語音</div>
+  <div class="tap-sub">Tap to enable voice</div>
+</div>
+
+<!-- No-speech banner -->
+<div id="no-speech-banner">此瀏覽器不支援語音朗讀</div>
+
+<div id="app">
+  <div class="header-title">STarT 背部檢測工具</div>
+  <div class="header-sub">新界東醫院聯網 物理治療部</div>
+
+  <!-- Quiz area -->
+  <div id="quiz-area">
+    <div id="progress-area">
+      <div id="progress-text"></div>
+      <div id="progress-bar-bg"><div id="progress-bar-fill"></div></div>
+    </div>
+    <div id="question-card">
+      <div id="question-number"></div>
+      <div id="question-text"></div>
+      <button id="replay-btn">🔊 重播</button>
+    </div>
+    <div id="answers-area"></div>
+  </div>
+
+  <!-- Result screen -->
+  <div id="result-screen">
+    <div class="result-card">
+      <div class="result-msg" id="result-msg"></div>
+      <div class="result-scores" id="result-scores"></div>
+      <div class="result-credit">威爾斯親王醫院物理治療部製作</div>
+    </div>
+    <button id="restart-btn">🔄 重新開始</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ═══════════════════ DATA MODEL ═══════════════════ */
+  var questions = [
+    { id:1, text:'在過去兩周內，我的背痛有時已經擴散到腿部。', type:'yesno' },
+    { id:2, text:'在過去兩周內，我有時會有肩或頸部疼痛的情況。', type:'yesno' },
+    { id:3, text:'我曾因為背痛而僅能短距離行走。', type:'yesno' },
+    { id:4, text:'在過去兩周內，我曾因為背痛導致穿衣服的速度比平常緩慢。', type:'yesno' },
+    { id:5, text:'我認為對於一個和我有相同狀況的人來說，體力活動是不安全的。', type:'yesno' },
+    { id:6, text:'我常會擔心我的背痛。', type:'yesno' },
+    { id:7, text:'我覺得我的背痛很嚴重，且不會得到任何改善。', type:'yesno' },
+    { id:8, text:'整體而言，我不再享受過去喜歡做的事。', type:'yesno' },
+    { id:9, text:'整體而言，過去兩周內背痛對您的影響程度如何？', type:'scale',
+      options:[
+        { label:'完全不受影響', value:0 },
+        { label:'輕微影響',     value:0 },
+        { label:'中度影響',     value:0 },
+        { label:'非常影響',     value:1 },
+        { label:'重度影響',     value:1 }
+      ]
+    }
+  ];
+
+  var BTN_COLORS_5 = ['clr-green','clr-blue','clr-gold','clr-orange','clr-red'];
+
+  /* ═══════════════════ STATE ═══════════════════ */
+  var currentIndex  = 0;
+  var answers       = [];
+  var locked        = false;
+  var speechEnabled = false;
+  var speechOK      = ('speechSynthesis' in window);
+  var repeatTimer   = null;
+  var speechSeqId   = 0;
+
+  /* ═══════════════════ DOM REFS ═══════════════════ */
+  var elOverlay     = document.getElementById('speech-overlay');
+  var elBanner      = document.getElementById('no-speech-banner');
+  var elProgressTxt = document.getElementById('progress-text');
+  var elProgressBar = document.getElementById('progress-bar-fill');
+  var elQNum        = document.getElementById('question-number');
+  var elQText       = document.getElementById('question-text');
+  var elReplay      = document.getElementById('replay-btn');
+  var elAnswers     = document.getElementById('answers-area');
+  var elQuiz        = document.getElementById('quiz-area');
+  var elResult      = document.getElementById('result-screen');
+  var elResultMsg   = document.getElementById('result-msg');
+  var elResultScore = document.getElementById('result-scores');
+  var elRestart     = document.getElementById('restart-btn');
+
+  /* ═══════════════════ INIT ═══════════════════ */
+  function init() {
+    if (!speechOK) {
+      elOverlay.style.display = 'none';
+      elBanner.style.display  = 'block';
+      startQuiz();
+    } else {
+      window.speechSynthesis.getVoices();
+      elOverlay.addEventListener('click', onOverlayTap);
+    }
+    elReplay.addEventListener('click', function () {
+      stopRepeatTimer();
+      speakSequence();
+    });
+    elRestart.addEventListener('click', restart);
+  }
+
+  function onOverlayTap() {
+    speechEnabled = true;
+    elOverlay.style.display = 'none';
+    var dummy = new SpeechSynthesisUtterance('');
+    dummy.lang = 'zh-HK';
+    dummy.volume = 0;
+    window.speechSynthesis.speak(dummy);
+    startQuiz();
+  }
+
+  function startQuiz() {
+    currentIndex = 0;
+    answers = [];
+    elResult.style.display = 'none';
+    elQuiz.style.display   = 'flex';
+    renderQuestion();
+  }
+
+  /* ═══════════════════ RENDER ═══════════════════ */
+  function renderQuestion() {
+    locked = false;
+    var q = questions[currentIndex];
+
+    elProgressTxt.textContent = '第 ' + (currentIndex + 1) + ' / 9 題';
+    elProgressBar.style.width = ((currentIndex + 1) / 9 * 100) + '%';
+
+    elQNum.textContent  = '問題 ' + (currentIndex + 1);
+    elQText.textContent = q.text;
+
+    elAnswers.innerHTML = '';
+
+    if (q.type === 'yesno') {
+      addButton('✅', '同意',   1, 'clr-red');
+      addButton('❌', '不同意', 0, 'clr-blue');
+    } else {
+      q.options.forEach(function (opt, i) {
+        addButton(null, opt.label, opt.value, BTN_COLORS_5[i]);
+      });
+    }
+
+    window.scrollTo(0, 0);
+    speakSequence();
+  }
+
+  function addButton(emoji, label, value, colorClass) {
+    var btn = document.createElement('button');
+    btn.className = 'answer-btn ' + colorClass;
+
+    if (emoji) {
+      var emojiSpan = document.createElement('span');
+      emojiSpan.className = 'btn-emoji';
+      emojiSpan.textContent = emoji;
+      btn.appendChild(emojiSpan);
+    }
+
+    var textSpan = document.createElement('span');
+    textSpan.textContent = label;
+    btn.appendChild(textSpan);
+
+    btn.setAttribute('data-speech', label);
+    btn.addEventListener('click', function () { onAnswer(btn, value); });
+    elAnswers.appendChild(btn);
+  }
+
+  /* ═══════════════════ SPEECH SEQUENCE (questions) ═══════════════════ */
+  function speakSequence() {
+    if (!speechOK || !speechEnabled) return;
+    window.speechSynthesis.cancel();
+    clearAllGlow();
+    stopRepeatTimer();
+
+    speechSeqId++;
+    var mySeqId = speechSeqId;
+
+    var q = questions[currentIndex];
+    var items = [];
+
+    items.push({ text: q.text, buttonIndex: -1 });
+
+    var btns = elAnswers.querySelectorAll('.answer-btn');
+    for (var i = 0; i < btns.length; i++) {
+      items.push({ text: btns[i].getAttribute('data-speech'), buttonIndex: i });
+    }
+
+    var idx = 0;
+
+    function speakNext() {
+      if (mySeqId !== speechSeqId) return;
+
+      if (idx >= items.length || locked) {
+        clearAllGlow();
+        if (mySeqId === speechSeqId) startRepeatTimer();
+        return;
+      }
+
+      var item = items[idx];
+      var utter = new SpeechSynthesisUtterance(item.text);
+      utter.lang = 'zh-HK';
+      utter.rate = 0.9;
+      setVoice(utter);
+
+      utter.onstart = function () {
+        if (mySeqId !== speechSeqId) return;
+        clearAllGlow();
+        if (item.buttonIndex >= 0) {
+          var allBtns = elAnswers.querySelectorAll('.answer-btn');
+          if (allBtns[item.buttonIndex]) {
+            allBtns[item.buttonIndex].classList.add('glow');
+          }
+        }
+      };
+
+      utter.onend = function () {
+        if (mySeqId !== speechSeqId) return;
+        clearAllGlow();
+        idx++;
+        setTimeout(speakNext, 400);
+      };
+
+      utter.onerror = function () {
+        if (mySeqId !== speechSeqId) return;
+        clearAllGlow();
+        idx++;
+        setTimeout(speakNext, 400);
+      };
+
+      window.speechSynthesis.speak(utter);
+    }
+
+    speakNext();
+  }
+
+  /* ═══════════════════ SPEECH: RESULT ═══════════════════ */
+  function speakResult(totalScore, subScore) {
+    if (!speechOK || !speechEnabled) return;
+    window.speechSynthesis.cancel();
+    stopRepeatTimer();
+
+    speechSeqId++;
+    var mySeqId = speechSeqId;
+
+    var lines = [
+      '非常感謝您完成了這份調查中所有的問題。',
+      '請勿關閉此頁面，並將你的分數寫在卡上，然後交給物理治療師。',
+      '您的小計分數是 ' + subScore + ' 分。',
+      '您的總計分數是 ' + totalScore + ' 分。'
+    ];
+
+    var idx = 0;
+
+    function speakNext() {
+      if (mySeqId !== speechSeqId) return;
+      if (idx >= lines.length) return;
+
+      var utter = new SpeechSynthesisUtterance(lines[idx]);
+      utter.lang = 'zh-HK';
+      utter.rate = 0.9;
+      setVoice(utter);
+
+      utter.onend = function () {
+        if (mySeqId !== speechSeqId) return;
+        idx++;
+        setTimeout(speakNext, 400);
+      };
+
+      utter.onerror = function () {
+        if (mySeqId !== speechSeqId) return;
+        idx++;
+        setTimeout(speakNext, 400);
+      };
+
+      window.speechSynthesis.speak(utter);
+    }
+
+    speakNext();
+  }
+
+  /* ═══════════════════ VOICE HELPER ═══════════════════ */
+  function setVoice(utter) {
+    var voices = window.speechSynthesis.getVoices();
+    for (var v = 0; v < voices.length; v++) {
+      var vl = voices[v].lang || '';
+      if (vl === 'zh-HK' || vl.indexOf('zh-HK') === 0 || vl === 'yue-HK' || vl.indexOf('yue') === 0) {
+        utter.voice = voices[v];
+        break;
+      }
+    }
+  }
+
+  function clearAllGlow() {
+    var btns = elAnswers.querySelectorAll('.answer-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.remove('glow');
+    }
+  }
+
+  /* ═══════════════════ ANSWER HANDLER ═══════════════════ */
+  function onAnswer(btn, value) {
+    if (locked) return;
+    locked = true;
+
+    stopRepeatTimer();
+    speechSeqId++;
+    if (speechOK) window.speechSynthesis.cancel();
+    clearAllGlow();
+
+    var all = elAnswers.querySelectorAll('.answer-btn');
+    for (var i = 0; i < all.length; i++) all[i].classList.add('locked');
+    btn.classList.remove('locked');
+    btn.classList.add('selected');
+
+    answers[currentIndex] = value;
+
+    setTimeout(function () {
+      currentIndex++;
+      if (currentIndex < questions.length) {
+        renderQuestion();
+      } else {
+        showResult();
+      }
+    }, 350);
+  }
+
+  /* ═══════════════════ RESULT ═══════════════════ */
+  function showResult() {
+    stopRepeatTimer();
+    speechSeqId++;
+    if (speechOK) window.speechSynthesis.cancel();
+    clearAllGlow();
+
+    elQuiz.style.display   = 'none';
+    elResult.style.display = 'block';
+
+    var totalScore = 0, subScore = 0;
+    for (var i = 0; i < answers.length; i++) {
+      totalScore += answers[i];
+      if (i >= 4) subScore += answers[i];
+    }
+
+    elResultMsg.textContent =
+      '非常感謝您完成了這份調查中所有的問題。' +
+      '請勿關閉此頁面，並將你的分數寫在卡上，然後交給物理治療師。';
+
+    elResultScore.innerHTML =
+      '<span>小計: ' + subScore   + ' / 5</span>' +
+      '<span>總計: ' + totalScore + ' / 9</span>';
+
+    window.scrollTo(0, 0);
+
+    speakResult(totalScore, subScore);
+  }
+
+  /* ═══════════════════ RESTART ═══════════════════ */
+  function restart() {
+    stopRepeatTimer();
+    speechSeqId++;
+    if (speechOK) window.speechSynthesis.cancel();
+    clearAllGlow();
+    startQuiz();
+  }
+
+  /* ═══════════════════ REPEAT TIMER ═══════════════════ */
+  function startRepeatTimer() {
+    stopRepeatTimer();
+    repeatTimer = setTimeout(function () {
+      if (!locked) speakSequence();
+    }, 10000);
+  }
+
+  function stopRepeatTimer() {
+    if (repeatTimer !== null) {
+      clearTimeout(repeatTimer);
+      repeatTimer = null;
+    }
+  }
+
+  if (speechOK && typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
+    window.speechSynthesis.onvoiceschanged = function () {
+      window.speechSynthesis.getVoices();
+    };
+  }
+
+  /* ═══════════════════ GO ═══════════════════ */
+  init();
+})();
+</script>
+
+
+</body></html>
