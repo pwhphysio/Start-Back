@@ -1,0 +1,805 @@
+<!DOCTYPE html><html lang="zh-HK"><head><meta name="x-poe-datastore-behavior" content="local_only"><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>STarT Back 背部檢測工具</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{
+  height:100%;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang HK","Microsoft JhengHei",Roboto,sans-serif;
+  background:#46178f;
+  color:#fff;
+  overflow-x:hidden;
+}
+
+/* ── Speech unlock overlay ── */
+#speech-overlay{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.88);
+  display:flex;flex-direction:column;
+  justify-content:center;align-items:center;
+  z-index:1000;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+#speech-overlay .tap-icon{
+  font-size:6rem;margin-bottom:1.5rem;
+  animation:pulse 1.4s ease-in-out infinite;
+}
+#speech-overlay .tap-text{font-size:2.8rem;font-weight:bold;}
+#speech-overlay .tap-sub{font-size:1.3rem;margin-top:.8rem;opacity:.7;}
+@keyframes pulse{
+  0%,100%{transform:scale(1);opacity:1}
+  50%{transform:scale(1.18);opacity:.65}
+}
+
+/* ── No-speech banner ── */
+#no-speech-banner{
+  display:none;position:fixed;top:0;left:0;right:0;
+  background:#e74c3c;color:#fff;text-align:center;
+  padding:.7rem;font-size:1.2rem;z-index:500;
+}
+
+/* ── App container ── */
+#app{
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:flex-start;
+  padding:1rem .7rem 2rem;
+}
+
+/* ── Header ── */
+.header-title{font-size:1.8rem;font-weight:bold;text-align:center;margin-top:.4rem;}
+.header-sub{font-size:1.1rem;text-align:center;opacity:.75;margin-top:.2rem;margin-bottom:.8rem;}
+
+/* ── Progress ── */
+#progress-area{width:100%;max-width:700px;margin-bottom:1rem;}
+#progress-text{font-size:1.6rem;font-weight:bold;text-align:center;margin-bottom:.5rem;}
+#progress-bar-bg{width:100%;height:12px;background:rgba(255,255,255,.2);border-radius:6px;overflow:hidden;}
+#progress-bar-fill{height:100%;width:0;background:#66d9a0;border-radius:6px;transition:width .4s ease;}
+
+/* ── Question card ── */
+#question-card{
+  background:#fff;color:#222;border-radius:16px;
+  padding:1.6rem 1.2rem 1rem;
+  width:100%;max-width:700px;text-align:center;
+  box-shadow:0 8px 32px rgba(0,0,0,.3);
+  margin-bottom:1.2rem;
+}
+#question-number{font-size:1.2rem;color:#999;margin-bottom:.35rem;font-weight:bold;}
+#question-text{font-size:2rem;font-weight:bold;line-height:1.75;}
+
+/* ── Button row ── */
+.btn-row{
+  display:flex;justify-content:center;gap:.6rem;margin-top:1rem;flex-wrap:wrap;
+}
+.card-btn{
+  display:inline-flex;align-items:center;gap:.3rem;
+  padding:.6rem 1.8rem;
+  background:#ececec;color:#555;border:none;border-radius:25px;
+  font-size:1.3rem;cursor:pointer;transition:background .2s;
+  -webkit-tap-highlight-color:transparent;
+}
+.card-btn:hover{background:#ddd;}
+.card-btn.active{background:#ffeaa7;color:#856404;}
+
+/* ── Explanation panel (question level) ── */
+#explanation-panel{
+  display:none;
+  background:#fff9e6;border:2px solid #f0d060;border-radius:12px;
+  padding:1.2rem 1rem;margin-top:1rem;text-align:left;
+  animation:fadeSlideDown .3s ease;
+}
+@keyframes fadeSlideDown{
+  from{opacity:0;transform:translateY(-10px);}
+  to{opacity:1;transform:translateY(0);}
+}
+.explain-text{font-size:1.4rem;line-height:1.8;color:#333;}
+.explain-listen-btn{
+  display:inline-flex;align-items:center;gap:.3rem;
+  margin-top:.8rem;padding:.4rem 1.2rem;
+  background:#f0d060;color:#6b5900;border:none;border-radius:20px;
+  font-size:1.1rem;cursor:pointer;transition:background .2s;
+  -webkit-tap-highlight-color:transparent;
+}
+.explain-listen-btn:hover{background:#e6c340;}
+
+/* ── Answers area ── */
+#answers-area{
+  width:100%;max-width:700px;
+  display:grid;grid-template-columns:1fr;gap:.75rem;
+}
+
+/* ── Option wrapper (Q9) ── */
+.option-wrapper{display:flex;flex-direction:column;}
+.option-main-row{display:flex;gap:.5rem;}
+.option-main-row .answer-btn{flex:1;}
+.option-explain-btn{
+  min-width:3.5rem;padding:0 0.6rem;border:none;border-radius:14px;
+  background:#f0d060;color:#6b5900;font-size:1.2rem;font-weight:bold;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:0.2rem;
+  transition:background .2s,transform .15s;
+  box-shadow:0 5px 0 rgba(0,0,0,.15);
+  -webkit-tap-highlight-color:transparent;
+  flex-shrink:0;
+  white-space:nowrap;
+}
+.option-explain-btn:hover{background:#e6c340;}
+.option-explain-btn:active{transform:scale(.96);}
+.option-explain-btn.active{background:#ffd000;box-shadow:0 0 0 3px #fff,0 5px 0 rgba(0,0,0,.15);}
+
+.option-explain-panel{
+  display:none;
+  background:#fff9e6;border:2px solid #f0d060;border-radius:10px;
+  padding:.8rem 1rem;margin-top:.4rem;text-align:left;
+  animation:fadeSlideDown .3s ease;
+}
+.option-explain-panel .explain-text{font-size:1.2rem;line-height:1.7;}
+.option-explain-panel .explain-listen-btn{
+  margin-top:.5rem;padding:.3rem 1rem;font-size:1rem;
+}
+
+/* ── Answer buttons ── */
+.answer-btn{
+  border:none;border-radius:14px;
+  padding:1.5rem 1rem;
+  font-size:2rem;font-weight:bold;
+  color:#fff;cursor:pointer;
+  transition:transform .15s,opacity .15s,box-shadow .3s,filter .3s;
+  box-shadow:0 5px 0 rgba(0,0,0,.22);
+  text-align:center;user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  min-height:4.5rem;
+  display:flex;align-items:center;justify-content:center;
+  gap:0.5rem;position:relative;
+}
+.answer-btn:active:not(.locked){transform:scale(.96);}
+.answer-btn.locked{pointer-events:none;opacity:.35;filter:grayscale(.3);}
+.answer-btn.selected{
+  transform:scale(1.04);opacity:1!important;filter:none!important;
+  box-shadow:0 0 0 5px #fff,0 5px 0 rgba(0,0,0,.22);
+}
+
+.answer-btn.glow{
+  animation:glowPulse .7s ease-in-out infinite alternate;
+  z-index:10;transform:scale(1.04);
+}
+@keyframes glowPulse{
+  0%{
+    box-shadow:0 0 12px rgba(255,255,255,0.6),0 0 24px rgba(255,255,255,0.3),0 5px 0 rgba(0,0,0,.22);
+    filter:brightness(1.15);
+  }
+  100%{
+    box-shadow:0 0 24px rgba(255,255,255,1),0 0 48px rgba(255,255,255,0.5),0 0 72px rgba(255,255,255,0.2),0 5px 0 rgba(0,0,0,.22);
+    filter:brightness(1.35);
+  }
+}
+
+.clr-red{background:#e21b3c;}
+.clr-blue{background:#1368ce;}
+.clr-green{background:#26890c;}
+.clr-gold{background:#d89e00;}
+.clr-orange{background:#e67e22;}
+
+.btn-emoji{font-size:2.4rem;line-height:1;}
+
+/* ── Result screen ── */
+#result-screen{display:none;width:100%;max-width:700px;text-align:center;}
+.result-card{
+  background:#fff;color:#333;border-radius:16px;
+  padding:2rem 1.4rem;
+  box-shadow:0 8px 32px rgba(0,0,0,.3);
+  margin-bottom:1.5rem;
+}
+.result-msg{font-size:1.6rem;line-height:1.9;margin-bottom:1.8rem;text-align:left;}
+.result-scores{font-size:2.4rem;font-weight:bold;color:#46178f;}
+.result-scores span{display:block;margin:.5rem 0;}
+.result-credit{font-size:1rem;color:#aaa;margin-top:1.4rem;}
+#restart-btn{
+  padding:1.2rem 3rem;background:#66d9a0;color:#fff;
+  border:none;border-radius:30px;font-size:1.8rem;font-weight:bold;
+  cursor:pointer;box-shadow:0 4px 0 rgba(0,0,0,.15);
+  transition:background .2s;
+  -webkit-tap-highlight-color:transparent;
+}
+#restart-btn:hover{background:#50c08a;}
+
+#quiz-area{width:100%;display:flex;flex-direction:column;align-items:center;}
+
+@media(in-width:600px){
+  #question-text{font-size:2.4rem;}
+  .answer-btn{font-size:2.2rem;padding:1.8rem 1.2rem;}
+  .btn-emoji{font-size:2.8rem;}
+  .result-msg{font-size:1.8rem;}
+  .result-scores{font-size:2.8rem;}
+  .explain-text{font-size:1.6rem;}
+  .option-explain-panel .explain-text{font-size:1.4rem;}
+}
+</style>
+</head>
+<body>
+
+<div id="speech-overlay">
+  <div class="tap-icon">🔊</div>
+  <div class="tap-text">點按以啟用語音</div>
+  <div class="tap-sub">Tap to enable voice</div>
+</div>
+
+<div id="no-speech-banner">此瀏覽器不支援語音朗讀</div>
+
+<div id="app">
+  <div class="header-title">STarT 背部檢測工具</div>
+  <div class="header-sub">新界東醫院聯網 物理治療部</div>
+
+  <div id="quiz-area">
+    <div id="progress-area">
+      <div id="progress-text"></div>
+      <div id="progress-bar-bg"><div id="progress-bar-fill"></div></div>
+    </div>
+    <div id="question-card">
+      <div id="question-number"></div>
+      <div id="question-text"></div>
+      <div class="btn-row">
+        <button class="card-btn" id="replay-btn">🔊 重播</button>
+        <button class="card-btn" id="explain-btn">💡 解釋</button>
+      </div>
+      <div id="explanation-panel">
+        <div class="explain-text" id="explain-text"></div>
+        <button class="explain-listen-btn" id="explain-listen-btn">🔊 再聽一次解釋</button>
+      </div>
+    </div>
+    <div id="answers-area"></div>
+  </div>
+
+  <div id="result-screen">
+    <div class="result-card">
+      <div class="result-msg" id="result-msg"></div>
+      <div class="result-scores" id="result-scores"></div>
+      <div class="result-credit">威爾斯親王醫院物理治療部製作</div>
+    </div>
+    <button id="restart-btn">🔄 重新開始</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ═══════════════════ DATA ═══════════════════ */
+  var questions = [
+    { id:1, text:'在過去兩周內，我的背痛有時已經擴散到腿部。', type:'yesno',
+      explanation:'呢題想問你條腰痛有冇痛埋落腳？例如你坐低或者行路嗰陣，條腰痛會唔會延伸到臀部、大腿、甚至小腿？' },
+    { id:2, text:'在過去兩周內，我有時會有肩或頸部疼痛的情況。', type:'yesno',
+      explanation:'想問你呢兩個禮拜，有冇試過條頸痛或者膊頭痛？' },
+    { id:3, text:'我曾因為背痛而僅能短距離行走。', type:'yesno',
+      explanation:'呢題想知道你有冇因為腰痛而行唔到遠路？例如以前可以行到街市，而家行幾步就痛到要停低休息？' },
+    { id:4, text:'在過去兩周內，我曾因為背痛導致穿衣服的速度比平常緩慢。', type:'yesno',
+      explanation:'呢題係問你著衫有冇因為腰痛而慢咗？例如著褲、著襪、綁鞋帶嗰陣要慢慢嚟，或者要人幫手？' },
+    { id:5, text:'我認為對於一個和我有相同狀況的人來說，體力活動是不安全的。', type:'yesno',
+      explanation:'呢題想了解你覺唔覺得好似你咁既情況，做運動或者體力活動會令到腰痛更加嚴重？或者覺得會唔會對條腰有危險？' },
+    { id:6, text:'我常會擔心我的背痛。', type:'yesno',
+      explanation:'想問你會唔會經常擔心條腰痛？例如會唔會成日諗住條腰，怕佢越嚟越嚴重，或者擔心係咪有啲咩大問題？' },
+    { id:7, text:'我覺得我的背痛很嚴重，且不會得到任何改善。', type:'yesno',
+      explanation:'想問你覺唔覺得條腰痛好嚴重？同埋你覺唔覺得佢之後都唔會有改善，好似點做都唔會好返咁？' },
+    { id:8, text:'整體而言，我不再享受過去喜歡做的事。', type:'yesno',
+      explanation:'呢題問嘅係你有冇因為腰痛而做唔到或者唔想做以前鍾意做嘅嘢？例如以前鍾意行公園、打太極、飲茶，而家因為痛所以都唔想做？' },
+    { id:9, text:'整體而言，過去兩周內背痛對您的影響程度如何？', type:'scale',
+      explanation:'呢題想了解你呢兩個禮拜，條腰痛對你日常生活嘅影響有幾大？',
+      options:[
+        { label:'完全不受影響', value:0, explanation:'條腰痛完全冇影響到你日常生活，做乜都同平時一樣。' },
+        { label:'輕微影響',     value:0, explanation:'有少少影響，但大部分嘢都仲做到，只係偶爾會覺得痛。' },
+        { label:'中度影響',     value:0, explanation:'條腰痛幾明顯咁影響到你生活，有啲嘢要改變做法或者做慢啲。' },
+        { label:'非常影響',     value:1, explanation:'條腰痛好大程度影響到你日常生活，好多嘢都做唔到或者做得好辛苦。' },
+        { label:'重度影響',     value:1, explanation:'條腰痛嚴重到你大部分嘢都做唔到，日常生活需要好多人幫手。' }
+      ]
+    }
+  ];
+
+  var BTN_COLORS_5 = ['clr-green','clr-blue','clr-gold','clr-orange','clr-red'];
+
+  /* ═══════════════════ STATE ═══════════════════ */
+  var currentIndex   = 0;
+  var answers        = [];
+  var locked         = false;
+  var speechEnabled  = false;
+  var speechOK       = ('speechSynthesis' in window);
+  var repeatTimer    = null;
+  var speechSeqId    = 0;
+  var explanationOpen= false;
+
+  /* ── Explanation loop state ── */
+  var expLoopId      = 0;
+  var expLoopTimer   = null;
+
+  /* ═══════════════════ DOM REFS ═══════════════════ */
+  var elOverlay      = document.getElementById('speech-overlay');
+  var elBanner       = document.getElementById('no-speech-banner');
+  var elProgressTxt  = document.getElementById('progress-text');
+  var elProgressBar  = document.getElementById('progress-bar-fill');
+  var elQNum         = document.getElementById('question-number');
+  var elQText        = document.getElementById('question-text');
+  var elReplay       = document.getElementById('replay-btn');
+  var elExplainBtn   = document.getElementById('explain-btn');
+  var elExplainPanel = document.getElementById('explanation-panel');
+  var elExplainText  = document.getElementById('explain-text');
+  var elExplainListen= document.getElementById('explain-listen-btn');
+  var elAnswers      = document.getElementById('answers-area');
+  var elQuiz         = document.getElementById('quiz-area');
+  var elResult       = document.getElementById('result-screen');
+  var elResultMsg    = document.getElementById('result-msg');
+  var elResultScore  = document.getElementById('result-scores');
+  var elRestart      = document.getElementById('restart-btn');
+
+  /* ═══════════════════════════════════════════════════
+     VOICE SELECTION
+     ═══════════════════════════════════════════════════ */
+  function applyVoice(utter){
+    var voices = window.speechSynthesis.getVoices();
+    var zhHK = null;
+    var zhTW = null;
+    var zhAny = null;
+
+    for(var i = 0; i < voices.length; i++){
+      var lang = voices[i].lang || '';
+      if(lang === 'zh-HK' && !zhHK)          zhHK  = voices[i];
+      if(lang === 'zh-TW' && !zhTW)          zhTW  = voices[i];
+      if(lang.indexOf('zh') === 0 && !zhAny) zhAny = voices[i];
+    }
+
+    utter.voice = zhHK || zhTW || zhAny || null;
+    utter.lang  = 'zh-HK';
+    utter.rate  = 0.8;
+  }
+
+  /* ═══════════════════ HELPERS ═══════════════════ */
+
+  function isAnyOptionExplanationOpen(){
+    var panels = elAnswers.querySelectorAll('.option-explain-panel');
+    for(var i = 0; i < panels.length; i++){
+      if(panels[i].style.display === 'block') return true;
+    }
+    return false;
+  }
+
+  function clearAllGlow(){
+    var btns = elAnswers.querySelectorAll('.answer-btn');
+    for(var i = 0; i < btns.length; i++) btns[i].classList.remove('glow');
+  }
+
+  /* ═══════════════════ REPEAT TIMER ═══════════════════ */
+  function startRepeatTimer(){
+    stopRepeatTimer();
+    repeatTimer = setTimeout(function(){
+      if(!locked && !explanationOpen && !isAnyOptionExplanationOpen()){
+        speakSequence();
+      }
+    }, 10000);
+  }
+
+  function stopRepeatTimer(){
+    if(repeatTimer !== null){ clearTimeout(repeatTimer); repeatTimer = null; }
+  }
+
+  /* ═══════════════════ EXPLANATION LOOP ═══════════════════ */
+
+  function stopExpLoop(){
+    expLoopId++;
+    if(expLoopTimer !== null){ clearTimeout(expLoopTimer); expLoopTimer = null; }
+  }
+
+  function expLoopSpeak(text, myId, cb){
+    if(myId !== expLoopId) return;
+    if(!speechOK || !speechEnabled){ if(cb) cb(); return; }
+
+    var utter = new SpeechSynthesisUtterance(text);
+    applyVoice(utter);
+    utter.onend   = function(){ if(myId === expLoopId && cb) cb(); };
+    utter.onerror = function(){ if(myId === expLoopId && cb) cb(); };
+    window.speechSynthesis.speak(utter);
+  }
+
+  function startExpLoop(explanationText){
+    stopExpLoop();
+    stopRepeatTimer();
+    if(speechOK) window.speechSynthesis.cancel();
+    clearAllGlow();
+    speechSeqId++;
+
+    var myId = expLoopId;
+    var qText = questions[currentIndex].text;
+
+    expLoopSpeak(explanationText, myId, function(){
+      if(myId !== expLoopId) return;
+      expLoopTimer = setTimeout(function(){
+        if(myId !== expLoopId) return;
+        expLoopRepeatCycle(myId, qText, explanationText);
+      }, 10000);
+    });
+  }
+
+  function expLoopRepeatCycle(myId, qText, eText){
+    if(myId !== expLoopId) return;
+    expLoopSpeak(qText, myId, function(){
+      if(myId !== expLoopId) return;
+      expLoopSpeak(eText, myId, function(){
+        if(myId !== expLoopId) return;
+        expLoopTimer = setTimeout(function(){
+          if(myId !== expLoopId) return;
+          expLoopRepeatCycle(myId, qText, eText);
+        }, 10000);
+      });
+    });
+  }
+
+  /* ═══════════════════ SPEECH: SEQUENCE ═══════════════════ */
+  function speakSequence(){
+    if(!speechOK || !speechEnabled) return;
+    window.speechSynthesis.cancel();
+    clearAllGlow();
+    stopRepeatTimer();
+
+    speechSeqId++;
+    var mySeqId = speechSeqId;
+    var q = questions[currentIndex];
+    var items = [];
+
+    items.push({ text: q.text, buttonIndex: -1 });
+
+    var btns = elAnswers.querySelectorAll('.answer-btn');
+    for(var i = 0; i < btns.length; i++){
+      items.push({ text: btns[i].getAttribute('data-speech'), buttonIndex: i });
+    }
+
+    var idx = 0;
+
+    function speakNext(){
+      if(mySeqId !== speechSeqId) return;
+      if(idx >= items.length || locked){
+        clearAllGlow();
+        if(mySeqId === speechSeqId) startRepeatTimer();
+        return;
+      }
+
+      var item = items[idx];
+      var utter = new SpeechSynthesisUtterance(item.text);
+      applyVoice(utter);
+
+      utter.onstart = function(){
+        if(mySeqId !== speechSeqId) return;
+        clearAllGlow();
+        if(item.buttonIndex >= 0){
+          var allBtns = elAnswers.querySelectorAll('.answer-btn');
+          if(allBtns[item.buttonIndex]) allBtns[item.buttonIndex].classList.add('glow');
+        }
+      };
+      utter.onend = function(){
+        if(mySeqId !== speechSeqId) return;
+        clearAllGlow();
+        idx++;
+        setTimeout(speakNext, 400);
+      };
+      utter.onerror = function(){
+        if(mySeqId !== speechSeqId) return;
+        clearAllGlow();
+        idx++;
+        setTimeout(speakNext, 400);
+      };
+
+      window.speechSynthesis.speak(utter);
+    }
+
+    speakNext();
+  }
+
+  /* ═══════════════════ SPEECH: RESULT ═══════════════════ */
+  function speakResult(totalScore, subScore){
+    if(!speechOK || !speechEnabled) return;
+    window.speechSynthesis.cancel();
+    stopRepeatTimer();
+    speechSeqId++;
+    var mySeqId = speechSeqId;
+
+    var lines = [
+      '非常感謝您完成了這份調查中所有的問題。',
+      '請勿關閉此頁面，並將你的分數寫在卡上，然後交給物理治療師。',
+      '您的小計分數是 ' + subScore + ' 分。',
+      '您的總計分數是 ' + totalScore + ' 分。'
+    ];
+
+    var idx = 0;
+    function speakNext(){
+      if(mySeqId !== speechSeqId) return;
+      if(idx >= lines.length) return;
+      var utter = new SpeechSynthesisUtterance(lines[idx]);
+      applyVoice(utter);
+      utter.onend = function(){
+        if(mySeqId !== speechSeqId) return;
+        idx++;
+        setTimeout(speakNext, 400);
+      };
+      utter.onerror = function(){
+        if(mySeqId !== speechSeqId) return;
+        idx++;
+        setTimeout(speakNext, 400);
+      };
+      window.speechSynthesis.speak(utter);
+    }
+    speakNext();
+  }
+
+  /* ═══════════════════ EXPLANATION (QUESTION) ═══════════════════ */
+  function openExplanation(){
+    explanationOpen = true;
+    elExplainPanel.style.display = 'block';
+    elExplainBtn.classList.add('active');
+    closeAllOptionExplanations();
+    var q = questions[currentIndex];
+    startExpLoop(q.explanation);
+  }
+
+  function closeExplanation(){
+    explanationOpen = false;
+    elExplainPanel.style.display = 'none';
+    elExplainBtn.classList.remove('active');
+  }
+
+  function toggleExplanation(){
+    if(explanationOpen){
+      closeExplanation();
+      stopExpLoop();
+      if(speechOK) window.speechSynthesis.cancel();
+      speechSeqId++;
+      startRepeatTimer();
+    } else {
+      openExplanation();
+    }
+  }
+
+  /* ═══════════════════ EXPLANATION (Q9 OPTIONS) ═══════════════════ */
+  function toggleOptionExplanation(index){
+    var panel = document.getElementById('opt-explain-' + index);
+    var allExpBtns = elAnswers.querySelectorAll('.option-explain-btn');
+    var btn = allExpBtns[index];
+
+    if(panel && panel.style.display === 'block'){
+      panel.style.display = 'none';
+      if(btn) btn.classList.remove('active');
+      stopExpLoop();
+      if(speechOK) window.speechSynthesis.cancel();
+      speechSeqId++;
+      startRepeatTimer();
+    } else {
+      closeAllOptionExplanations();
+      closeExplanation();
+      if(panel) panel.style.display = 'block';
+      if(btn) btn.classList.add('active');
+      var q = questions[currentIndex];
+      if(q.options && q.options[index]){
+        startExpLoop(q.options[index].explanation);
+      }
+    }
+  }
+
+  function closeAllOptionExplanations(){
+    var panels = elAnswers.querySelectorAll('.option-explain-panel');
+    for(var i = 0; i < panels.length; i++) panels[i].style.display = 'none';
+    var btns = elAnswers.querySelectorAll('.option-explain-btn');
+    for(var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+  }
+
+  /* ═══════════════════ RENDER ═══════════════════ */
+  function renderQuestion(){
+    locked = false;
+    explanationOpen = false;
+    stopExpLoop();
+    var q = questions[currentIndex];
+
+    elProgressTxt.textContent = '第 ' + (currentIndex + 1) + ' / 9 題';
+    elProgressBar.style.width = ((currentIndex + 1) / 9 * 100) + '%';
+    elQNum.textContent = '問題 ' + (currentIndex + 1);
+    elQText.textContent = q.text;
+
+    elExplainPanel.style.display = 'none';
+    elExplainBtn.classList.remove('active');
+    elExplainText.textContent = q.explanation;
+
+    elAnswers.innerHTML = '';
+
+    if(q.type === 'yesno'){
+      addButton('✅', '同意', 1, 'clr-red');
+      addButton('❌', '不同意', 0, 'clr-blue');
+    } else {
+      q.options.forEach(function(opt, i){
+        addScaleOption(opt, i, BTN_COLORS_5[i]);
+      });
+    }
+
+    window.scrollTo(0, 0);
+    speakSequence();
+  }
+
+  function addButton(emoji, label, value, colorClass){
+    var btn = document.createElement('button');
+    btn.className = 'answer-btn ' + colorClass;
+    if(emoji){
+      var es = document.createElement('span');
+      es.className = 'btn-emoji';
+      es.textContent = emoji;
+      btn.appendChild(es);
+    }
+    var ts = document.createElement('span');
+    ts.textContent = label;
+    btn.appendChild(ts);
+    btn.setAttribute('data-speech', label);
+    btn.addEventListener('click', function(){ onAnswer(btn, value); });
+    elAnswers.appendChild(btn);
+  }
+
+  function addScaleOption(opt, index, colorClass){
+    var wrapper = document.createElement('div');
+    wrapper.className = 'option-wrapper';
+
+    var mainRow = document.createElement('div');
+    mainRow.className = 'option-main-row';
+
+    var btn = document.createElement('button');
+    btn.className = 'answer-btn ' + colorClass;
+    var ts = document.createElement('span');
+    ts.textContent = opt.label;
+    btn.appendChild(ts);
+    btn.setAttribute('data-speech', opt.label);
+    btn.addEventListener('click', function(){ onAnswer(btn, opt.value); });
+    mainRow.appendChild(btn);
+
+    var optExpBtn = document.createElement('button');
+    optExpBtn.className = 'option-explain-btn';
+    optExpBtn.textContent = '💡 解釋';
+    optExpBtn.addEventListener('click', function(){ toggleOptionExplanation(index); });
+    mainRow.appendChild(optExpBtn);
+
+    wrapper.appendChild(mainRow);
+
+    var panel = document.createElement('div');
+    panel.className = 'option-explain-panel';
+    panel.id = 'opt-explain-' + index;
+
+    var expText = document.createElement('div');
+    expText.className = 'explain-text';
+    expText.textContent = opt.explanation;
+    panel.appendChild(expText);
+
+    var listenBtn = document.createElement('button');
+    listenBtn.className = 'explain-listen-btn';
+    listenBtn.textContent = '🔊 再聽一次';
+    listenBtn.addEventListener('click', function(){ startExpLoop(opt.explanation); });
+    panel.appendChild(listenBtn);
+
+    wrapper.appendChild(panel);
+    elAnswers.appendChild(wrapper);
+  }
+
+  /* ═══════════════════ ANSWER ═══════════════════ */
+  function onAnswer(btn, value){
+    if(locked) return;
+    locked = true;
+
+    stopRepeatTimer();
+    stopExpLoop();
+    speechSeqId++;
+    if(speechOK) window.speechSynthesis.cancel();
+    clearAllGlow();
+    closeExplanation();
+    closeAllOptionExplanations();
+
+    var all = elAnswers.querySelectorAll('.answer-btn');
+    for(var i = 0; i < all.length; i++) all[i].classList.add('locked');
+    btn.classList.remove('locked');
+    btn.classList.add('selected');
+
+    var optBtns = elAnswers.querySelectorAll('.option-explain-btn');
+    for(var i = 0; i < optBtns.length; i++) optBtns[i].style.pointerEvents = 'none';
+
+    answers[currentIndex] = value;
+
+    setTimeout(function(){
+      currentIndex++;
+      if(currentIndex < questions.length) renderQuestion();
+      else showResult();
+    }, 350);
+  }
+
+  /* ═══════════════════ RESULT ═══════════════════ */
+  function showResult(){
+    stopRepeatTimer();
+    stopExpLoop();
+    speechSeqId++;
+    if(speechOK) window.speechSynthesis.cancel();
+    clearAllGlow();
+
+    elQuiz.style.display = 'none';
+    elResult.style.display = 'block';
+
+    var totalScore = 0, subScore = 0;
+    for(var i = 0; i < answers.length; i++){
+      totalScore += answers[i];
+      if(i >= 4) subScore += answers[i];
+    }
+
+    elResultMsg.textContent =
+      '非常感謝您完成了這份調查中所有的問題。' +
+      '請勿關閉此頁面，並將你的分數寫在卡上，然後交給物理治療師。';
+
+    elResultScore.innerHTML =
+      '<span>小計: ' + subScore + ' / 5</span>' +
+      '<span>總計: ' + totalScore + ' / 9</span>';
+
+    window.scrollTo(0, 0);
+    speakResult(totalScore, subScore);
+  }
+
+  /* ═══════════════════ RESTART ═══════════════════ */
+  function restart(){
+    stopRepeatTimer();
+    stopExpLoop();
+    speechSeqId++;
+    if(speechOK) window.speechSynthesis.cancel();
+    clearAllGlow();
+    startQuiz();
+  }
+
+  /* ═══════════════════ INIT ═══════════════════ */
+  function init(){
+    if(!speechOK){
+      elOverlay.style.display = 'none';
+      elBanner.style.display = 'block';
+      startQuiz();
+    } else {
+      window.speechSynthesis.getVoices();
+      if(typeof window.speechSynthesis.onvoiceschanged !== 'undefined'){
+        window.speechSynthesis.onvoiceschanged = function(){
+          window.speechSynthesis.getVoices();
+        };
+      }
+      elOverlay.addEventListener('click', onOverlayTap);
+    }
+    elReplay.addEventListener('click', function(){
+      closeExplanation();
+      closeAllOptionExplanations();
+      stopExpLoop();
+      stopRepeatTimer();
+      speakSequence();
+    });
+    elExplainBtn.addEventListener('click', function(){
+      toggleExplanation();
+    });
+    elExplainListen.addEventListener('click', function(){
+      var q = questions[currentIndex];
+      startExpLoop(q.explanation);
+    });
+    elRestart.addEventListener('click', restart);
+  }
+
+  function onOverlayTap(){
+    speechEnabled = true;
+    elOverlay.style.display = 'none';
+    var dummy = new SpeechSynthesisUtterance('');
+    dummy.lang = 'zh-HK';
+    dummy.volume = 0;
+    window.speechSynthesis.speak(dummy);
+    startQuiz();
+  }
+
+  function startQuiz(){
+    currentIndex = 0;
+    answers = [];
+    elResult.style.display = 'none';
+    elQuiz.style.display = 'flex';
+    renderQuestion();
+  }
+
+  /* ═══════════════════ GO ═══════════════════ */
+  init();
+})();
+</script>
+
+
+</body></html>
